@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      /* background-color: #c3c5c9; */
+      background-image: url('https://images.unsplash.com/photo-1580327344181-c1163234e5a0?q=80&w=1467&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D');
+      background-repeat: no-repeat;
+      background-attachment: fixed;
+      background-size: 100% 100%;
+      font-family: 'Arial', sans-serif;
+      color: #fff;
+    }
+    canvas {
+      border: 2px solid #333;
+      box-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
+      background-color: rgb(0, 0, 0);
+    }
+    #paused {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 24px;
+      color: #fff;
+      display: none;
+    }
+    #score {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      font-size: 18px;
+      color: #fff;
+    }
+    #startGame {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 24px;
+      color: #fff;
+      background-color: #3498db;
+      border: none;
+      padding: 10px 20px;
+      cursor: pointer;
+      border-radius: 5px;
+      display: block;
+      transition: background-color 0.3s;
+    }
+    #startGame:hover {
+      background-color: #2980b9;
+    }
+  </style>
+  <title>Tetris</title>
+</head>
+<body>
+  <canvas id="tetrisCanvas" width="300" height="600"></canvas>
+  <div id="paused">Paused</div>
+  <div id="score">Score: 0</div>
+  <button id="startGame" onclick="startGame()">Start Game</button>
+  <script>
+    const canvas = document.getElementById('tetrisCanvas');
+    const ctx = canvas.getContext('2d');
+    const pausedMessage = document.getElementById('paused');
+    const scoreDisplay = document.getElementById('score');
+    const startGameButton = document.getElementById('startGame');
+
+    const ROWS = 20;
+    const COLS = 10;
+    const BLOCK_SIZE = 30;
+    const board = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+
+    const pieces = [
+      { shape: [[1, 1, 1, 1]], color: '#3498db' }, // I
+      { shape: [[1, 1, 1], [1]], color: '#e74c3c' }, // L
+      { shape: [[1, 1, 1], [0, 0, 1]], color: '#2ecc71' }, // J
+      { shape: [[1, 1, 1], [0, 1]], color: '#f39c12' }, // T
+      { shape: [[1, 1], [1, 1]], color: '#f1c40f' }, // O
+      { shape: [[1, 1, 1], [1, 0]], color: '#9b59b6' }, // S
+      { shape: [[1, 1, 1], [0, 1]], color: '#27ae60' } // Z
+    ];
+
+    const blockColors = {
+      '#3498db': { main: '#2980b9', shadow: '#1f6693' }, // Blue
+      '#e74c3c': { main: '#c0392b', shadow: '#962d23' }, // Red
+      '#2ecc71': { main: '#27ae60', shadow: '#1d7049' }, // Green
+      '#f39c12': { main: '#d78208', shadow: '#a76806' }, // Orange
+      '#f1c40f': { main: '#d4ac0d', shadow: '#ae8a0a' }, // Yellow
+      '#9b59b6': { main: '#8e44ad', shadow: '#6f3a87' }, // Purple
+      '#27ae60': { main: '#219051', shadow: '#167a3e' }  // Dark Green
+    };
+
+    let currentPiece;
+    let currentRow;
+    let currentCol;
+    let isPaused;
+    let score;
+
+    function startGame() {
+      startGameButton.style.display = 'none';
+      isPaused = false;
+      score = 0;
+      resetGame();
+      setInterval(draw, 500);
+    }
+
+    function draw() {
+      // Clear the canvas
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Draw the board
+      drawBoard();
+
+      // Draw the current piece
+      drawPiece(currentPiece.shape, currentRow, currentCol, currentPiece.color);
+
+      // Move the piece down
+      if (!isPaused) {
+        moveDown();
+      }
+
+      // Show/hide paused message
+      pausedMessage.style.display = isPaused ? 'block' : 'none';
+
+      // Display the score
+      scoreDisplay.textContent = `Score: ${score}`;
+    }
+
+    function drawBoard() {
+      ctx.fillStyle = '#000'; // Set background color to black
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      for (let row = 0; row < ROWS; row++) {
+        for (let col = 0; col < COLS; col++) {
+          if (board[row][col] !== 0) {
+            const color = blockColors[board[row][col]];
+            drawBlock(col, row, color.main, color.shadow);
+          }
+        }
+      }
+    }
+
+    function drawPiece(piece, row, col, color) {
+      for (let i = 0; i < piece.length; i++) {
+        for (let j = 0; j < piece[i].length; j++) {
+          if (piece[i][j] === 1) {
+            const blockColor = blockColors[color];
+            const x = (col + j) * BLOCK_SIZE;
+            const y = (row + i) * BLOCK_SIZE;
+            drawBlock(col + j, row + i, blockColor.main, blockColor.shadow);
+          }
+        }
+      }
+    }
+
+    function drawBlock(x, y, mainColor, shadowColor) {
+      // Draw the main color of the block
+      ctx.fillStyle = mainColor;
+      ctx.fillRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+
+      // Draw the shadow (3D effect)
+      ctx.fillStyle = shadowColor;
+      ctx.beginPath();
+      ctx.moveTo(x * BLOCK_SIZE, y * BLOCK_SIZE);
+      ctx.lineTo((x + 1) * BLOCK_SIZE, y * BLOCK_SIZE);
+      ctx.lineTo((x + 1) * BLOCK_SIZE, (y + 1) * BLOCK_SIZE);
+      ctx.fill();
+    }
+
+    function moveDown() {
+      if (isValidMove(currentPiece.shape, currentRow + 1, currentCol)) {
+        currentRow++;
+      } else {
+        // Lock the piece on the board
+        placePieceOnBoard();
+        // Check for complete rows and clear them
+        const rowsCleared = clearRows();
+        // Update the score based on the number of cleared rows
+        updateScore(rowsCleared);
+        // Spawn a new piece
+        currentPiece = randomPiece();
+        currentRow = 0;
+        currentCol = Math.floor((COLS - currentPiece.shape[0].length) / 2);
+        // Check if the new piece is immediately blocked (game over)
+        if (!isValidMove(currentPiece.shape, currentRow, currentCol)) {
+          alert(`Game Over! Your Score: ${score}`);
+          resetGame();
+          startGameButton.style.display = 'block';
+        }
+      }
+    }
+
+    function isValidMove(piece, row, col) {
+      for (let i = 0; i < piece.length; i++) {
+        for (let j = 0; j < piece[i].length; j++) {
+          if (
+            piece[i][j] === 1 &&
+            (board[row + i] && board[row + i][col + j]) !== 0
+          ) {
+            return false;
+          }
+        }
+      }
+      return true;
+    }
+
+    function placePieceOnBoard() {
+      for (let i = 0; i < currentPiece.shape.length; i++) {
+        for (let j = 0; j < currentPiece.shape[i].length; j++) {
+          if (currentPiece.shape[i][j] === 1) {
+            board[currentRow + i][currentCol + j] = currentPiece.color;
+          }
+        }
+      }
+    }
+
+    function clearRows() {
+      let rowsCleared = 0;
+      for (let row = ROWS - 1; row >= 0; row--) {
+        if (board[row].every(cell => cell !== 0)) {
+          // Clear the row
+          board.splice(row, 1);
+          // Add a new empty row at the top
+          board.unshift(Array(COLS).fill(0));
+          rowsCleared++;
+        }
+      }
+      return rowsCleared;
+    }
+
+    function updateScore(rowsCleared) {
+      // Score more points for clearing multiple rows at once
+      score += rowsCleared * 100;
+    }
+
+    function randomPiece() {
+      const randomIndex = Math.floor(Math.random() * pieces.length);
+      return pieces[randomIndex];
+    }
+
+    function resetGame() {
+      board.forEach(row => row.fill(0));
+      currentPiece = randomPiece();
+      currentRow = 0;
+      currentCol = Math.floor((COLS - currentPiece.shape[0].length) / 2);
+    }
+
+    // Handle keyboard input
+    document.addEventListener('keydown', handleKeyPress);
+
+    function handleKeyPress(event) {
+      if (event.key === ' ' && startGameButton.style.display === 'block') {
+        startGame();
+      } else if (event.key === ' ') {
+        // Toggle pause/resume on spacebar press
+        isPaused = !isPaused;
+      } else if (!isPaused) {
+        // Handle other key presses only if the game is not paused
+        switch (event.key) {
+          case 'ArrowLeft':
+            if (isValidMove(currentPiece.shape, currentRow, currentCol - 1)) {
+              currentCol--;
+            }
+            break;
+          case 'ArrowRight':
+            if (isValidMove(currentPiece.shape, currentRow, currentCol + 1)) {
+              currentCol++;
+            }
+            break;
+          case 'ArrowDown':
+            while (isValidMove(currentPiece.shape, currentRow + 1, currentCol)) {
+              currentRow++;
+            }
+            break;
+          case 'ArrowUp':
+            rotatePiece();
+            break;
+        }
+      }
+    }
+
+    function rotatePiece() {
+      const rotatedPiece = [];
+      for (let i = 0; i < currentPiece.shape[0].length; i++) {
+        rotatedPiece[i] = [];
+        for (let j = currentPiece.shape.length - 1; j >= 0; j--) {
+          rotatedPiece[i].push(currentPiece.shape[j][i]);
+        }
+      }
+
+      if (isValidMove(rotatedPiece, currentRow, currentCol)) {
+        currentPiece.shape = rotatedPiece;
+      }
+    }
+  </script>
+</body>
+</html>
